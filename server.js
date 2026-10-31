@@ -1,36 +1,50 @@
-// Get the packages we need
-var express = require('express'),
-    router = express.Router(),
-    mongoose = require('mongoose');
+const express = require('express');
+const mongoose = require('mongoose');
+const path = require('path');
 
-// Read .env file
-require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '.env'), quiet: true });
 
-// Create our Express application
-var app = express();
+const app = express();
+const port = process.env.PORT || 3000;
 
-// Use environment defined port or 3000
-var port = process.env.PORT || 3000;
-
-// Connect to a MongoDB --> Uncomment this once you have a connection string!!
-//mongoose.connect(process.env.MONGODB_URI).catch(function (err) { console.error('MongoDB connection error:', err.message); });
-
-// Allow CORS so that backend and frontend could be put on different servers
-var allowCrossDomain = function (req, res, next) {
-    res.header("Access-Control-Allow-Origin", "*");
-    res.header("Access-Control-Allow-Headers", "X-Requested-With, X-HTTP-Method-Override, Content-Type, Accept");
-    res.header("Access-Control-Allow-Methods", "POST, GET, PUT, DELETE, OPTIONS");
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Headers', 'X-Requested-With, X-HTTP-Method-Override, Content-Type, Accept');
+    res.header('Access-Control-Allow-Methods', 'POST, GET, PUT, DELETE, OPTIONS');
+    if (req.method === 'OPTIONS') return res.sendStatus(204);
     next();
-};
-app.use(allowCrossDomain);
-
-// Parse URL-encoded and JSON request bodies
+});
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+require('./routes')(app);
+app.use((req, res) => {
+    res.status(404).json({ message: 'Endpoint not found.', data: null });
+});
+app.use(require('./middleware/errors'));
 
-// Use routes as a module (see index.js)
-require('./routes')(app, router);
+async function startServer() {
+    if (!process.env.MONGODB_URI) throw new Error('MONGODB_URI is missing. Check your .env file.');
+    await mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 10000 });
+    await mongoose.connection.db.admin().ping();
+    // Ensure unique email enforcement is ready before requests arrive.
+    await require('./models/user').init();
+    await require('./models/task').init();
+    console.log('Connected to MongoDB');
+    const server = app.listen(port, () => console.log('Server running on port ' + server.address().port));
+    server.on('error', async error => {
+        console.error('HTTP server failed:', error.code);
+        await mongoose.disconnect();
+        process.exitCode = 1;
+    });
+    return server;
+}
 
-// Start the server
-app.listen(port);
-console.log('Server running on port ' + port);
+if (require.main === module) {
+    startServer().catch(async error => {
+        console.error('Startup failed:', error.name, '- check database configuration and network access.');
+        await mongoose.disconnect();
+        process.exitCode = 1;
+    });
+}
+
+module.exports = { app, startServer };

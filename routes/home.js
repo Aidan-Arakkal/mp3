@@ -1,11 +1,7 @@
-module.exports = function (router) {
+const router = require('express').Router();
 
-    var homeRoute = router.route('/');
+router.get('/', (req, res) => {
+    res.status(200).json({ message: 'API is running.', data: null });
+});
 
-    homeRoute.get(function (req, res) {
-        var connectionString = process.env.TOKEN;
-        res.json({ message: 'My connection string is ' + connectionString });
-    });
-
-    return router;
-}
+module.exports = router;

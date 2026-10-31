@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: cs409-mp3-api
+    runtime: node
+    plan: free
+    region: ohio
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /api/
+    envVars:
+      - key: NODE_VERSION
+        value: 24.22.1
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false
