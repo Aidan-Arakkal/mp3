@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: cs409-mp3-api
+    name: cs409-mp3-aidan
     runtime: node
     plan: free
     region: ohio
