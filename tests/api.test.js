@@ -60,20 +60,25 @@ async function consistent() {
     }
 }
 
-async function request(method, path, body, status = 200, raw = false) {
+async function request(method, path, body, status = method === 'DELETE' ? 204 : 200, raw = false) {
     const previous = await snapshot();
     const response = await fetch(base + path, {
         method,
         headers: { 'Content-Type': 'application/json' },
         ...(body === undefined ? {} : { body: raw ? body : JSON.stringify(body) })
     });
-    const json = await response.json();
+    const text = await response.text();
+    const json = text ? JSON.parse(text) : null;
     assert.equal(response.status, status, method + ' ' + path + ': ' + JSON.stringify(json));
-    assert.equal(typeof json.message, 'string');
-    assert.ok(Object.hasOwn(json, 'data'));
+    if (status === 204) {
+        assert.equal(text, '', 'Successful deletion must return no content');
+    } else {
+        assert.equal(typeof json.message, 'string');
+        assert.ok(Object.hasOwn(json, 'data'));
+    }
     if (status >= 400) assert.equal(await snapshot(), previous, 'Failed requests must not change data');
     await consistent();
-    return json.data;
+    return json ? json.data : undefined;
 }
 
 function user(name = 'Alice', email = name + '@example.com', extra = {}) {
@@ -248,7 +253,7 @@ test('concurrent user deletion and completed-task creation leave no dangling ref
                 body: JSON.stringify({ name: 'Concurrent ' + i, deadline, completed: true, assignedUser: a._id })
             })
         ]);
-        assert.equal(responses[0].status, 200);
+        assert.equal(responses[0].status, 204);
         assert.ok([201, 404].includes(responses[1].status));
         await consistent();
     }
